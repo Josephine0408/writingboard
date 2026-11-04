@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小黑板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+:root{
+  --board:#2E4A3F; --board-deep:#203530; --slate:#1C2925;
+  --chalk:#F1EFE4; --chalk-dim:#AEB9AE;
+  --yellow:#F3D36B; --pink:#F0A3A8; --blue:#93C6E6;
+  --wood:#9A6A3C; --wood-dark:#6B4524; --wood-light:#C08A55;
+}
+html,body{margin:0;height:100%}
+body{--wfont:Kalam,"Noto Sans TC",cursive}
+body[data-subject=zh]{--wfont:"LXGW WenKai TC","Noto Sans TC",serif}
+body[data-subject=math]{--wfont:"Noto Sans TC",system-ui,sans-serif}
+body{
+  font-family:"Noto Sans TC",system-ui,sans-serif;color:var(--chalk);
+  background:
+    radial-gradient(ellipse at 18% 8%,rgba(255,255,255,.07),transparent 50%),
+    radial-gradient(ellipse at 85% 95%,rgba(255,255,255,.05),transparent 55%),
+    var(--board);
+}
+button,input,textarea{font:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+.btn{border:2px solid rgba(241,239,228,.5);background:transparent;color:var(--chalk);padding:.5em 1em;border-radius:10px;font-size:1rem;line-height:1.2}
+.btn:hover{background:rgba(241,239,228,.12)}
+.btn.primary{background:var(--yellow);border-color:var(--yellow);color:#2b2414;font-weight:700}
+.btn.on{background:var(--chalk);color:var(--board-deep);border-color:var(--chalk)}
+.demo-note{background:var(--yellow);color:#2b2414;text-align:center;padding:6px 12px;font-size:.9rem}
+
+/* 四線格 */
+.guide{
+  background-color:var(--slate);
+  background-image:var(--guide);
+  background-size:100% 100%;
+}
+
+/* ---------- 學生端 ---------- */
+.join{min-height:100%;display:grid;place-items:center;padding:24px}
+.join-card{width:min(440px,100%);text-align:center}
+.join-card h1{font-family:Kalam,"Noto Sans TC",cursive;font-size:3.4rem;margin:0 0 .2em;font-weight:700}
+.join-card p{color:var(--chalk-dim);margin:0 0 1.2em;font-size:1.1rem}
+.join-card input{width:100%;font-size:1.5rem;padding:.6em .8em;border-radius:12px;border:3px solid var(--chalk);background:var(--slate);color:var(--chalk);text-align:center;margin-bottom:1rem}
+.join-card .btn{width:100%;font-size:1.4rem;padding:.6em}
+
+.s-wrap{min-height:100%;display:flex;flex-direction:column;max-width:1100px;margin:0 auto;padding:12px 16px 20px;gap:12px}
+.s-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.word-label{font-size:1rem;color:var(--chalk-dim)}
+.s-word{font-family:var(--wfont);font-weight:700;font-size:clamp(2rem,6vw,3.4rem);line-height:1.1;word-break:break-word}
+.s-word.waiting{font-family:"Noto Sans TC",sans-serif;font-weight:400;font-size:1.4rem;color:var(--chalk-dim)}
+.name-chip{border:2px dashed rgba(241,239,228,.5);background:none;color:var(--chalk);border-radius:999px;padding:.35em 1em;font-size:1.05rem}
+.mode-switch{display:flex;gap:8px;justify-content:center}
+.mode-switch .btn{font-size:1.1rem}
+.frame{position:relative;width:min(100%,calc(60vh*5/3));aspect-ratio:5/3;margin:0 auto;border:12px solid var(--wood);border-radius:6px;box-shadow:inset 0 0 0 2px var(--wood-dark),0 6px 0 var(--wood-dark)}
+.frame canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.frame textarea{position:absolute;inset:0;width:100%;height:100%;resize:none;border:none;background:transparent;color:var(--chalk);font-family:var(--wfont);font-size:clamp(1.8rem,5vw,3.2rem);line-height:1.5;padding:.4em .6em;outline:none}
+.frame textarea::placeholder{color:rgba(241,239,228,.3)}
+.lock-cover{position:absolute;inset:0;display:grid;place-items:center;text-align:center;background:rgba(20,30,27,.9);font-size:clamp(1.4rem,4vw,2.2rem);line-height:1.6}
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center}
+.swatch{width:46px;height:46px;border-radius:50%;border:3px solid transparent;box-shadow:inset 0 0 0 3px var(--board)}
+.swatch.on{border-color:var(--chalk)}
+.tools .sep{width:2px;height:34px;background:rgba(241,239,228,.25)}
+.status{text-align:center;color:var(--chalk-dim);margin:0;font-size:.95rem}
+.status.bad{color:var(--pink)}
+
+/* ---------- 黑板端 ---------- */
+.board{height:100vh;display:grid;grid-template-rows:auto auto auto 1fr auto}
+.b-head{text-align:center;padding:2.5vh 3vw 0}
+.b-word{font-family:var(--wfont);font-weight:700;line-height:1.05;word-break:break-word;text-shadow:0 0 1px rgba(241,239,228,.6)}
+.b-word.empty{font-family:"Noto Sans TC",sans-serif;font-weight:400;font-size:1.8rem!important;color:var(--chalk-dim);text-shadow:none}
+.b-meta{display:flex;justify-content:center;gap:1.2rem;color:var(--chalk-dim);padding:.4rem 0 .6rem;font-size:1.05rem}
+.b-meta .lock-tag{color:var(--yellow)}
+.grid{overflow:auto;padding:.5vh 2.5vw 2vh;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:18px;align-content:start}
+.grid .empty-msg{grid-column:1/-1;text-align:center;color:var(--chalk-dim);font-size:1.2rem;margin-top:6vh;line-height:1.8}
+.card{cursor:pointer;border-radius:8px}
+.c-slate{position:relative;aspect-ratio:5/3;border:6px solid var(--wood);border-radius:6px;overflow:hidden;transition:border-color .3s}
+.c-slate img{position:absolute;inset:0;width:100%;height:100%}
+.c-text{position:absolute;left:0;right:0;bottom:0;margin:0;padding:.2em .5em;font-family:var(--wfont);font-size:1.5rem;line-height:1.15;text-align:center;word-break:break-word;background:rgba(28,41,37,.7)}
+.c-slate.textonly .c-text{top:0;display:flex;align-items:center;justify-content:center;font-size:2rem;background:none}
+.c-empty{position:absolute;inset:0;display:grid;place-items:center;color:rgba(241,239,228,.35);font-size:1rem}
+.c-name{margin:.4rem 0 0;font-size:1.1rem;font-weight:700;text-align:center}
+body.hide-names .c-name{visibility:hidden}
+.card.fresh .c-slate{border-color:var(--yellow)}
+.ledge{background:linear-gradient(var(--wood-light),var(--wood) 35%,var(--wood-dark));padding:10px 16px;box-shadow:0 -3px 0 var(--wood-dark)}
+.ctl-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+.ledge .btn{border-color:rgba(255,248,236,.6);color:#fff8ec;padding:.4em .8em;font-size:.95rem}
+.ledge .btn:hover{background:rgba(255,248,236,.15)}
+.ledge .btn.on{background:#fff8ec;color:var(--wood-dark)}
+.ledge .btn.primary{background:var(--yellow);color:#2b2414;border-color:var(--yellow)}
+.ledge input{padding:.45em .7em;border-radius:8px;border:none;width:13em;font-size:1rem}
+.list-pos{color:#fff8ec;min-width:3.5em;text-align:center;font-size:.95rem}
+.ledge .gap{width:12px}
+dialog{background:var(--board);color:var(--chalk);border:8px solid var(--wood);border-radius:8px;width:min(560px,92vw);padding:20px 22px}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{margin:0 0 .4em;font-size:1.3rem}
+dialog p{color:var(--chalk-dim);margin:.3em 0 .8em;line-height:1.6}
+dialog textarea,dialog input{width:100%;background:var(--slate);color:var(--chalk);border:2px solid rgba(241,239,228,.4);border-radius:8px;padding:.6em;font-size:1.05rem}
+dialog textarea{height:14em;font-family:var(--wfont);font-size:1.25rem}
+.dlg-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.danger{border-color:var(--pink)!important;color:var(--pink)!important}
+.zoom{position:fixed;inset:0;z-index:10;background:rgba(15,24,21,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;padding:3vh}
+.zoom .c-slate{width:min(92vw,calc(76vh*5/3));border-width:14px}
+.zoom .c-text{font-size:3.4rem}
+.zoom .c-slate.textonly .c-text{font-size:5rem}
+.zoom .c-name{font-size:2rem;margin:0}
+.zoom .hint{color:var(--chalk-dim);font-size:.95rem}
+.symbar{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.symbar button{min-width:46px;height:46px;border-radius:10px;border:2px solid rgba(241,239,228,.4);background:var(--slate);color:var(--chalk);font-size:1.35rem;font-family:var(--wfont)}
+.symbar button:hover{border-color:var(--chalk)}
+.seg{display:inline-flex;border:2px solid rgba(255,248,236,.6);border-radius:10px;overflow:hidden}
+.ledge .seg .btn{border:none;border-radius:0}
+.ledge select{padding:.45em .5em;border-radius:8px;border:none;font-size:.95rem}
+.subj-tag{color:var(--chalk)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* =========================================================
+   ① 把 Firebase 專案設定貼在這裡（說明見對話）
+   留空的話會進入「示範模式」：只在同一台電腦的分頁之間同步
+   ========================================================= */
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  databaseURL: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+
+/* ---------- 共用 ---------- */
+const params = new URLSearchParams(location.search);
+const ROOM = ((params.get('room') || 'class1').replace(/[^\w-]/g, '').slice(0, 30)) || 'class1';
+const IS_BOARD = params.has('board');
+const USE_FIREBASE = !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL && window.firebase);
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+
+function makeBackend() {
+  if (USE_FIREBASE) {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const root = firebase.database().ref('rooms/' + ROOM);
+    return {
+      mode: 'firebase',
+      watch(path, cb) { root.child(path).on('value', s => cb(s.val())); },
+      set(path, val) { return root.child(path).set(val); },
+      remove(path) { return root.child(path).remove(); },
+      onConn(cb) { firebase.database().ref('.info/connected').on('value', s => cb(!!s.val())); }
+    };
+  }
+  // 示範模式：localStorage + storage 事件（同一台電腦不同分頁）
+  const KEY = 'liveboard-demo-' + ROOM;
+  const listeners = [];
+  const load = () => store.get(KEY, {}) || {};
+  const getPath = (o, p) => { for (const k of p.split('/')) { if (o == null) return null; o = o[k]; } return o === undefined ? null : o; };
+  const setPath = (o, p, v) => {
+    const ks = p.split('/');
+    for (let i = 0; i < ks.length - 1; i++) { if (typeof o[ks[i]] !== 'object' || o[ks[i]] === null) o[ks[i]] = {}; o = o[ks[i]]; }
+    if (v === null) delete o[ks[ks.length - 1]]; else o[ks[ks.length - 1]] = v;
+  };
+  const notify = () => { const s = load(); listeners.forEach(l => l.cb(getPath(s, l.path))); };
+  window.addEventListener('storage', e => { if (e.key === KEY) notify(); });
+  return {
+    mode: 'demo',
+    watch(path, cb) { listeners.push({ path, cb }); cb(getPath(load(), path)); },
+    set(path, val) { const s = load(); setPath(s, path, val); store.set(KEY, s); notify(); return Promise.resolve(); },
+    remove(path) { return this.set(path, null); },
+    onConn(cb) { cb(true); }
+  };
+}
+const db = makeBackend();
+/* ---------- 科目與格線 ---------- */
+const SUBJECTS = {
+  en:   { name: '英文', guide: 'four',  label: '請寫：', placeholder: 'volunteer\nsenior center\nHow are you today?' },
+  zh:   { name: '國文', guide: 'tian4', label: '請寫：', placeholder: '春天\n溫暖\n一石二鳥' },
+  math: { name: '數學', guide: 'grid',  label: '題目：', placeholder: '3 + 5 × 2 = ?\n12 ÷ 4 = ?\n畫出一個直角三角形' }
+};
+const GUIDES = { four: '英文四線格', tian4: '田字格（4格）', tian10: '田字格（10格）', grid: '方格紙', blank: '空白' };
+const SYMBOLS = {
+  en: ['.', ',', '?', '!', "'"],
+  zh: ['，', '。', '、', '？', '！', '：', '；', '「', '」'],
+  math: ['+', '−', '×', '÷', '=', '<', '>', '≤', '≥', '√', 'π', '²', '³', '(', ')', '/', '°', '…']
+};
+function guideSVG(g) {
+  const L = 'rgba(241,239,228,0.2)', D = 'rgba(241,239,228,0.12)', R = 'rgba(240,163,168,0.5)';
+  const line = (x1, y1, x2, y2, c, dash) => `<line x1='${x1}' y1='${y1}' x2='${x2}' y2='${y2}' stroke='${c}' stroke-width='2'${dash ? " stroke-dasharray='10 10'" : ''}/>`;
+  let b = '';
+  if (g === 'four') {
+    b = line(0, 150, 1000, 150, L) + line(0, 270, 1000, 270, L, 1) + line(0, 390, 1000, 390, R) + line(0, 510, 1000, 510, L);
+  } else if (g === 'tian4' || g === 'tian10') {
+    const c = g === 'tian4' ? { n: 4, rows: 1, s: 230, x0: 40, y0: 185 } : { n: 5, rows: 2, s: 190, x0: 25, y0: 100 };
+    for (let r = 0; r < c.rows; r++) for (let i = 0; i < c.n; i++) {
+      const x = c.x0 + i * c.s, y = c.y0 + r * (c.s + 20);
+      b += `<rect x='${x}' y='${y}' width='${c.s}' height='${c.s}' fill='none' stroke='rgba(241,239,228,0.3)' stroke-width='2'/>`
+        + line(x + c.s / 2, y, x + c.s / 2, y + c.s, D, 1) + line(x, y + c.s / 2, x + c.s, y + c.s / 2, D, 1);
+    }
+  } else if (g === 'grid') {
+    for (let x = 50; x < 1000; x += 50) b += line(x, 0, x, 600, D);
+    for (let y = 50; y < 600; y += 50) b += line(0, y, 1000, y, D);
+  }
+  return `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 600' preserveAspectRatio='none'>${b}</svg>`;
+}
+function applySettings(st) {
+  st = st || {};
+  const subject = SUBJECTS[st.subject] ? st.subject : 'en';
+  const guide = GUIDES[st.guide] ? st.guide : SUBJECTS[subject].guide;
+  document.body.dataset.subject = subject;
+  document.body.style.setProperty('--guide', `url("data:image/svg+xml,${encodeURIComponent(guideSVG(guide))}")`);
+  return { subject, guide };
+}
+applySettings(null);
+
+const studentURL = () => location.origin + location.pathname + '?room=' + encodeURIComponent(ROOM);
+
+/* =========================================================
+   學生端
+   ========================================================= */
+function startStudent() {
+  document.title = '小黑板｜寫字';
+  const app = $('#app');
+  let sid = store.get('liveboard-sid', null);
+  if (!sid) { sid = 's' + Math.random().toString(36).slice(2, 10); store.set('liveboard-sid', sid); }
+  let name = store.get('liveboard-name-' + ROOM, '');
+
+  app.innerHTML = `
+    ${db.mode === 'demo' ? '<div class="demo-note">示範模式：只會同步到這台電腦的其他分頁</div>' : ''}
+    <section class="join" id="join" hidden>
+      <div class="join-card">
+        <h1>小黑板</h1>
+        <p>寫上座號和名字，就可以開始了</p>
+        <input id="nameInput" maxlength="12" placeholder="例如：07 小明" autocomplete="off">
+        <button class="btn primary" id="joinBtn">開始寫</button>
+      </div>
+    </section>
+    <div class="s-wrap" id="writer" hidden>
+      <header class="s-top">
+        <div>
+          <div class="word-label" id="wordLabel">請寫：</div>
+          <div class="s-word waiting" id="sWord">等老師出題…</div>
+        </div>
+        <button class="name-chip" id="rename" title="改名字"></button>
+      </header>
+      <div class="mode-switch">
+        <button class="btn on" data-mode="draw">✏️ 手寫</button>
+        <button class="btn" data-mode="type">⌨️ 打字</button>
+      </div>
+      <div class="frame guide">
+        <canvas id="pad"></canvas>
+        <textarea id="typeBox" placeholder="在這裡打字" hidden maxlength="200"></textarea>
+        <div class="lock-cover" id="lockCover" hidden>老師暫停書寫<br>請看黑板</div>
+      </div>
+      <div class="tools" id="tools">
+        <button class="swatch on" data-color="#F1EFE4" style="background:#F1EFE4" aria-label="白色粉筆"></button>
+        <button class="swatch" data-color="#F3D36B" style="background:#F3D36B" aria-label="黃色粉筆"></button>
+        <button class="swatch" data-color="#F0A3A8" style="background:#F0A3A8" aria-label="粉紅色粉筆"></button>
+        <button class="swatch" data-color="#93C6E6" style="background:#93C6E6" aria-label="藍色粉筆"></button>
+        <span class="sep"></span>
+        <button class="btn on" data-size="7">細</button>
+        <button class="btn" data-size="14">粗</button>
+        <button class="btn" id="eraser">板擦</button>
+        <span class="sep"></span>
+        <button class="btn" id="undo">上一步</button>
+        <button class="btn" id="clear">全部擦掉</button>
+      </div>
+      <div class="symbar" id="symbar" hidden></div>
+      <p class="status" id="status">連線中…</p>
+    </div>`;
+
+  const join = $('#join'), writer = $('#writer'), nameInput = $('#nameInput');
+  const pad = $('#pad'), typeBox = $('#typeBox'), statusEl = $('#status');
+  const W = 1000, H = 600;
+  pad.width = W; pad.height = H;
+  const ctx = pad.getContext('2d');
+  let strokes = [], cur = null, color = '#F1EFE4', size = 7, erasing = false;
+  let locked = false, myWordId = store.get('liveboard-wordid-' + ROOM, '') || '';
+  let pending = null, online = true, subject = 'en', typing = false;
+  function renderSymbar() {
+    const bar = $('#symbar');
+    bar.innerHTML = '';
+    for (const sym of SYMBOLS[subject]) {
+      const b = document.createElement('button');
+      b.textContent = sym; b.type = 'button';
+      b.addEventListener('pointerdown', e => e.preventDefault());
+      b.onclick = () => {
+        if (locked) return;
+        typeBox.setRangeText(sym, typeBox.selectionStart, typeBox.selectionEnd, 'end');
+        typeBox.focus(); scheduleSend();
+      };
+      bar.appendChild(b);
+    }
+    bar.hidden = !typing;
+  }
+
+  function showJoin() { nameInput.value = name; join.hidden = false; writer.hidden = true; setTimeout(() => nameInput.focus(), 50); }
+  function showWriter() { $('#rename').textContent = '👤 ' + name; join.hidden = true; writer.hidden = false; scheduleSend(); }
+  $('#joinBtn').onclick = () => {
+    const v = nameInput.value.trim();
+    if (!v) { nameInput.focus(); nameInput.placeholder = '請先寫座號和名字'; return; }
+    name = v; store.set('liveboard-name-' + ROOM, name); showWriter();
+  };
+  nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') $('#joinBtn').click(); });
+  $('#rename').onclick = showJoin;
+
+  // 畫圖
+  function styleFor(st) {
+    ctx.globalCompositeOperation = st.e ? 'destination-out' : 'source-over';
+    ctx.strokeStyle = st.c; ctx.fillStyle = st.c; ctx.lineWidth = st.s;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  }
+  function drawSeg(st, i) {
+    styleFor(st);
+    const p = st.p;
+    if (i === 0) { ctx.beginPath(); ctx.arc(p[0][0], p[0][1], st.s / 2, 0, Math.PI * 2); ctx.fill(); return; }
+    ctx.beginPath(); ctx.moveTo(p[i - 1][0], p[i - 1][1]); ctx.lineTo(p[i][0], p[i][1]); ctx.stroke();
+  }
+  function redraw() {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, W, H);
+    for (const st of strokes) for (let i = 0; i < st.p.length; i++) drawSeg(st, i);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  function pos(e) { const r = pad.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; }
+  pad.addEventListener('pointerdown', e => {
+    if (locked) return;
+    pad.setPointerCapture(e.pointerId);
+    cur = { c: color, s: erasing ? size * 5 : size, e: erasing, p: [pos(e)] };
+    strokes.push(cur); drawSeg(cur, 0);
+  });
+  pad.addEventListener('pointermove', e => {
+    if (!cur) return;
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of (evs.length ? evs : [e])) { cur.p.push(pos(ev)); drawSeg(cur, cur.p.length - 1); }
+    scheduleSend();
+  });
+  const endStroke = () => { if (cur) { cur = null; scheduleSend(); } };
+  pad.addEventListener('pointerup', endStroke);
+  pad.addEventListener('pointercancel', endStroke);
+
+  // 工具列
+  document.querySelectorAll('.swatch').forEach(b => b.onclick = () => {
+    color = b.dataset.color; erasing = false; $('#eraser').classList.remove('on');
+    document.querySelectorAll('.swatch').forEach(x => x.classList.toggle('on', x === b));
+  });
+  document.querySelectorAll('[data-size]').forEach(b => b.onclick = () => {
+    size = +b.dataset.size;
+    document.querySelectorAll('[data-size]').forEach(x => x.classList.toggle('on', x === b));
+  });
+  $('#eraser').onclick = () => {
+    erasing = !erasing; $('#eraser').classList.toggle('on', erasing);
+    document.querySelectorAll('.swatch').forEach(x => x.classList.toggle('on', !erasing && x.dataset.color === color));
+  };
+  $('#undo').onclick = () => { strokes.pop(); redraw(); scheduleSend(); };
+  $('#clear').onclick = () => { strokes = []; redraw(); typeBox.value = ''; scheduleSend(); };
+  document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
+    typing = b.dataset.mode === 'type';
+    $('#symbar').hidden = !typing;
+    document.querySelectorAll('[data-mode]').forEach(x => x.classList.toggle('on', x === b));
+    typeBox.hidden = !typing;
+    document.querySelectorAll('#tools .swatch,#tools [data-size],#eraser,#undo').forEach(x => x.disabled = typing);
+    $('#tools').style.opacity = typing ? .6 : 1;
+    if (typing) typeBox.focus();
+  });
+  typeBox.addEventListener('input', scheduleSend);
+
+  // 同步到黑板
+  function exportImg() {
+    if (!strokes.length) return '';
+    const c = document.createElement('canvas'); c.width = 500; c.height = 300;
+    c.getContext('2d').drawImage(pad, 0, 0, 500, 300);
+    return c.toDataURL('image/png');
+  }
+  function sendNow() {
+    pending = null;
+    if (!name) return;
+    db.set('students/' + sid, {
+      name, img: exportImg(), text: typeBox.value.slice(0, 200), wordId: myWordId || '', t: Date.now()
+    }).then(() => setStatus()).catch(() => setStatus('送出失敗，請檢查網路'));
+  }
+  function scheduleSend() { if (!pending) pending = setTimeout(sendNow, 300); }
+  function setStatus(err) {
+    statusEl.classList.toggle('bad', !!err || !online);
+    statusEl.textContent = err || (!online ? '連線中斷，恢復後會自動送出' : db.mode === 'demo' ? '示範模式：已同步' : '✓ 已顯示在黑板上');
+  }
+  db.onConn(v => { online = v; setStatus(); });
+
+  db.watch('word', w => {
+    const el = $('#sWord');
+    if (w && w.text) { el.textContent = w.text; el.classList.remove('waiting'); }
+    else { el.textContent = '等老師出題…'; el.classList.add('waiting'); }
+    const id = (w && w.id) || '';
+    if (id !== myWordId) {
+      myWordId = id; store.set('liveboard-wordid-' + ROOM, id);
+      strokes = []; redraw(); typeBox.value = ''; scheduleSend();
+    }
+  });
+  db.watch('settings', st => {
+    subject = applySettings(st).subject;
+    $('#wordLabel').textContent = SUBJECTS[subject].label;
+    renderSymbar();
+  });
+  db.watch('locked', v => {
+    locked = !!v; $('#lockCover').hidden = !locked; typeBox.disabled = locked;
+    if (locked) cur = null;
+  });
+
+  if (name) showWriter(); else showJoin();
+}
+
+/* =========================================================
+   黑板端（老師投影）
+   ========================================================= */
+function startBoard() {
+  document.title = '小黑板｜黑板';
+  const app = $('#app');
+  app.innerHTML = `
+    <div class="board">
+      ${db.mode === 'demo' ? '<div class="demo-note">示範模式：按「學生連結」開一個學生分頁試試看。要讓 Chromebook 連線，請先設定 Firebase。</div>' : '<div></div>'}
+      <header class="b-head"><div class="b-word empty" id="bWord">在下方輸入字詞，按「顯示」</div></header>
+      <div class="b-meta"><span class="subj-tag" id="subjTag"></span><span id="count">0 位同學</span><span class="lock-tag" id="lockTag" hidden>已暫停書寫</span></div>
+      <main class="grid" id="grid"><p class="empty-msg" id="emptyMsg">還沒有同學加入。<br>按「學生連結」複製網址，貼到 Google Classroom。</p></main>
+      <footer class="ledge">
+        <div class="ctl-row">
+          <span class="seg" id="subjectSeg">
+            <button class="btn" data-subject="en">英文</button>
+            <button class="btn" data-subject="zh">國文</button>
+            <button class="btn" data-subject="math">數學</button>
+          </span>
+          <select id="guideSel" aria-label="格線">${Object.entries(GUIDES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+          <span class="gap"></span>
+          <input id="wordInput" placeholder="輸入字詞或句子" maxlength="60" aria-label="字詞">
+          <button class="btn primary" id="showWord">顯示</button>
+          <span class="gap"></span>
+          <button class="btn" id="prevW">上一個</button>
+          <span class="list-pos" id="listPos">—</span>
+          <button class="btn" id="nextW">下一個</button>
+          <button class="btn" id="listBtn">字詞清單</button>
+          <span class="gap"></span>
+          <button class="btn" id="lockBtn">暫停書寫</button>
+          <button class="btn" id="clearBtn">清空作答</button>
+          <button class="btn" id="namesBtn">隱藏名字</button>
+          <button class="btn" id="linkBtn">學生連結</button>
+          <button class="btn" id="fsBtn">全螢幕</button>
+        </div>
+      </footer>
+    </div>
+    <dialog id="listDlg">
+      <h2 id="listTitle">字詞清單</h2>
+      <p>每個科目各有一份清單。一行一個字詞、句子或題目。之後用「上一個／下一個」切換（鍵盤左右鍵也可以）。</p>
+      <textarea id="listText"></textarea>
+      <div class="dlg-actions"><button class="btn" id="listCancel">取消</button><button class="btn primary" id="listSave">儲存清單</button></div>
+    </dialog>
+    <dialog id="linkDlg">
+      <h2>學生連結</h2>
+      <p>把這個網址貼到 Google Classroom 的公告或作業裡。學生用 Chromebook 點開，寫上座號和名字就能開始。</p>
+      <input id="linkText" readonly>
+      <div class="dlg-actions">
+        <button class="btn danger" id="removeAll">移除全部學生</button>
+        ${db.mode === 'demo' ? '<a class="btn" id="openTest" target="_blank" rel="noopener">開學生測試頁</a>' : ''}
+        <button class="btn" id="linkClose">關閉</button>
+        <button class="btn primary" id="copyLink">複製連結</button>
+      </div>
+    </dialog>
+    <div class="zoom" id="zoom" hidden>
+      <div class="c-slate guide" id="zSlate"><img id="zImg" alt=""><p class="c-text" id="zText"></p><span class="c-empty" id="zEmpty">還沒寫</span></div>
+      <h3 class="c-name" id="zName"></h3>
+      <div class="hint">← → 換下一位　Esc 或點一下關閉</div>
+    </div>`;
+
+  let word = null, students = {}, locked = false, zoomSid = null;
+  const cards = new Map();
+  const grid = $('#grid');
+  let settings = { subject: 'en', guide: 'four' };
+  let list = [], idx = -1;
+  const listKey = () => 'liveboard-list-' + ROOM + '-' + settings.subject;
+  const idxKey = () => 'liveboard-idx-' + ROOM + '-' + settings.subject;
+  function loadList() { list = store.get(listKey(), []); idx = store.get(idxKey(), -1); updateListPos(); }
+
+  function setWord(text) {
+    text = (text || '').trim();
+    if (!text) return;
+    db.set('word', { text, id: Date.now().toString(36) });
+  }
+  function fitWord(el, text) {
+    let n = 0;
+    for (const ch of text) n += /[\u2E80-\u9FFF\uF900-\uFFEF]/.test(ch) ? 1.8 : 1;
+    el.style.fontSize = n <= 8 ? 'min(15vw,20vh)' : n <= 16 ? 'min(9vw,15vh)' : n <= 30 ? 'min(5.5vw,10vh)' : 'min(4vw,7vh)';
+  }
+  function updateListPos() {
+    $('#listPos').textContent = list.length ? (idx >= 0 ? (idx + 1) : 0) + ' / ' + list.length : '—';
+    $('#prevW').disabled = !list.length; $('#nextW').disabled = !list.length;
+  }
+  function stepList(d) {
+    if (!list.length) { $('#listBtn').click(); return; }
+    idx = Math.max(0, Math.min(list.length - 1, idx + d));
+    store.set(idxKey(), idx); updateListPos(); setWord(list[idx]);
+  }
+
+  const isCurrent = s => s && s.wordId === ((word && word.id) || '');
+  function fillSlate(slate, img, textEl, emptyEl, s) {
+    const cur = isCurrent(s);
+    const src = cur && s.img ? s.img : '';
+    const txt = cur && s.text ? s.text : '';
+    if (img.dataset.src !== src) { img.dataset.src = src; if (src) img.src = src; else img.removeAttribute('src'); }
+    img.hidden = !src;
+    textEl.textContent = txt; textEl.hidden = !txt;
+    slate.classList.toggle('textonly', !!txt && !src);
+    emptyEl.hidden = !!(src || txt);
+  }
+  function sortedIds() {
+    return Object.keys(students).sort((a, b) =>
+      String(students[a].name || '').localeCompare(String(students[b].name || ''), 'zh-Hant', { numeric: true }));
+  }
+  function renderGrid() {
+    const ids = sortedIds();
+    $('#count').textContent = ids.length + ' 位同學';
+    $('#emptyMsg').hidden = ids.length > 0;
+    for (const [id, el] of cards) if (!students[id]) { el.remove(); cards.delete(id); }
+    for (const id of ids) {
+      const s = students[id];
+      let el = cards.get(id);
+      if (!el) {
+        el = document.createElement('article');
+        el.className = 'card'; el.tabIndex = 0;
+        el.innerHTML = '<div class="c-slate guide"><img alt=""><p class="c-text"></p><span class="c-empty">還沒寫</span></div><h3 class="c-name"></h3>';
+        el.onclick = () => openZoom(id);
+        el.onkeydown = e => { if (e.key === 'Enter') openZoom(id); };
+        cards.set(id, el);
+      }
+      el.querySelector('.c-name').textContent = s.name || '同學';
+      fillSlate(el.querySelector('.c-slate'), el.querySelector('img'), el.querySelector('.c-text'), el.querySelector('.c-empty'), s);
+      el.classList.toggle('fresh', isCurrent(s) && Date.now() - (s.t || 0) < 2500);
+      grid.appendChild(el);
+    }
+    renderZoom();
+  }
+  setInterval(() => {
+    for (const [id, el] of cards) { const s = students[id]; el.classList.toggle('fresh', isCurrent(s) && Date.now() - (s.t || 0) < 2500); }
+  }, 1000);
+
+  function openZoom(id) { zoomSid = id; $('#zoom').hidden = false; renderZoom(); }
+  function closeZoom() { zoomSid = null; $('#zoom').hidden = true; }
+  function renderZoom() {
+    if (!zoomSid) return;
+    const s = students[zoomSid];
+    if (!s) { closeZoom(); return; }
+    $('#zName').textContent = document.body.classList.contains('hide-names') ? '' : (s.name || '同學');
+    fillSlate($('#zSlate'), $('#zImg'), $('#zText'), $('#zEmpty'), s);
+  }
+  $('#zoom').onclick = closeZoom;
+
+  // 資料監聽
+  db.watch('word', w => {
+    word = w;
+    const el = $('#bWord');
+    if (w && w.text) { el.textContent = w.text; el.classList.remove('empty'); fitWord(el, w.text); }
+    else { el.textContent = '在下方輸入字詞，按「顯示」'; el.classList.add('empty'); el.style.fontSize = ''; }
+    renderGrid();
+  });
+  db.watch('locked', v => {
+    locked = !!v;
+    $('#lockBtn').textContent = locked ? '繼續書寫' : '暫停書寫';
+    $('#lockBtn').classList.toggle('on', locked);
+    $('#lockTag').hidden = !locked;
+  });
+  db.watch('settings', st => {
+    const prev = settings.subject;
+    settings = applySettings(st);
+    document.querySelectorAll('[data-subject]').forEach(b => b.classList.toggle('on', b.dataset.subject === settings.subject));
+    $('#guideSel').value = settings.guide;
+    $('#subjTag').textContent = SUBJECTS[settings.subject].name;
+    if (prev !== settings.subject || !list.length) loadList();
+    const w = $('#bWord'); if (word && word.text) fitWord(w, word.text);
+  });
+  document.querySelectorAll('[data-subject]').forEach(b => b.onclick = () => {
+    const k = b.dataset.subject;
+    db.set('settings', { subject: k, guide: SUBJECTS[k].guide });
+  });
+  $('#guideSel').onchange = e => db.set('settings', { subject: settings.subject, guide: e.target.value });
+  db.watch('students', s => { students = s || {}; renderGrid(); });
+
+  // 控制列
+  $('#showWord').onclick = () => { setWord($('#wordInput').value); $('#wordInput').value = ''; };
+  $('#wordInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#showWord').click(); });
+  $('#prevW').onclick = () => stepList(-1);
+  $('#nextW').onclick = () => stepList(1);
+  $('#lockBtn').onclick = () => db.set('locked', !locked);
+  $('#clearBtn').onclick = () => { if (word && word.text) setWord(word.text); };
+  $('#namesBtn').onclick = () => {
+    const on = document.body.classList.toggle('hide-names');
+    $('#namesBtn').textContent = on ? '顯示名字' : '隱藏名字';
+    $('#namesBtn').classList.toggle('on', on); renderZoom();
+  };
+  $('#fsBtn').onclick = () => {
+    if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {});
+  };
+  $('#listBtn').onclick = () => {
+    $('#listTitle').textContent = SUBJECTS[settings.subject].name + '清單';
+    $('#listText').placeholder = SUBJECTS[settings.subject].placeholder;
+    $('#listText').value = list.join('\n'); $('#listDlg').showModal();
+  };
+  $('#listCancel').onclick = () => $('#listDlg').close();
+  $('#listSave').onclick = () => {
+    list = $('#listText').value.split('\n').map(x => x.trim()).filter(Boolean);
+    idx = -1; store.set(listKey(), list); store.set(idxKey(), idx);
+    updateListPos(); $('#listDlg').close();
+  };
+  $('#linkBtn').onclick = () => {
+    $('#linkText').value = studentURL();
+    const t = $('#openTest'); if (t) t.href = studentURL();
+    $('#linkDlg').showModal(); $('#linkText').select();
+  };
+  $('#linkClose').onclick = () => $('#linkDlg').close();
+  $('#copyLink').onclick = () => {
+    const done = () => { $('#copyLink').textContent = '已複製'; setTimeout(() => $('#copyLink').textContent = '複製連結', 1500); };
+    if (navigator.clipboard) navigator.clipboard.writeText(studentURL()).then(done, () => { $('#linkText').select(); document.execCommand('copy'); done(); });
+    else { $('#linkText').select(); document.execCommand('copy'); done(); }
+  };
+  $('#removeAll').onclick = () => {
+    if (confirm('確定要移除全部學生嗎？學生畫面還開著的話，下一筆書寫時會自動重新出現。')) { db.remove('students'); $('#linkDlg').close(); }
+  };
+  document.addEventListener('keydown', e => {
+    if (e.target.closest('input,textarea,dialog')) return;
+    if (zoomSid) {
+      if (e.key === 'Escape') closeZoom();
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        const ids = sortedIds(); const i = ids.indexOf(zoomSid);
+        const n = ids[(i + (e.key === 'ArrowRight' ? 1 : -1) + ids.length) % ids.length];
+        if (n) { zoomSid = n; renderZoom(); }
+      }
+      return;
+    }
+    if (e.key === 'ArrowRight') stepList(1);
+    if (e.key === 'ArrowLeft') stepList(-1);
+  });
+  loadList();
+}
+
+IS_BOARD ? startBoard() : startStudent();
+</script>
+</body>
+</html>
